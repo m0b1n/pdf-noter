@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState, useEffect} from "react";
 import "./PdfHighlighterViewer.css";
 
 /**
@@ -13,7 +13,18 @@ const StatusBar = memo(({
   onSummarize,
   onClearData,
   canSummarize = true,
+  onZoom
 }) => {
+  const [zoom, setZoom] = useState(1.3);
+
+	const zoomIn = () => setZoom((prev) => Math.min(prev + 0.1, 3.0));
+	const zoomOut = () => setZoom((prev) => Math.max(prev - 0.1, 0.5));
+	const resetZoom = () => setZoom(1.0);
+
+  useEffect(()=>{
+    onZoom(zoom);
+  },[zoom, onZoom]);
+
   return (
     <div className="status-bar">
       <div className="status-bar-content">
@@ -35,6 +46,16 @@ const StatusBar = memo(({
           </div>
         </div>
         <div className="status-bar-actions">
+          <div>
+            <div className="zoom-group">
+              <button className="zoom-btn" onClick={zoomOut}>-</button>
+              <span className="zoom-text">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button className="zoom-btn" onClick={zoomIn}>+</button>
+              <button className="reset-btn" onClick={resetZoom}>Reset</button>
+            </div>
+          </div>
           <button
             type="button"
             onClick={onSummarize}

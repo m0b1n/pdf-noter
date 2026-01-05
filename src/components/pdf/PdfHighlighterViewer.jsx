@@ -22,7 +22,7 @@ const SETUP_POLLING_INTERVAL = 100; // ms
 function PdfHighlighterViewer({ url, onBack }) {
 	const { ollama } = useApp();
 	const storageKey = useMemo(() => `pdf_storage_${url.split("/").pop()}`, [url]);
-	
+
 	const [highlights, setHighlights] = useLocalStorage(`${storageKey}_highlights`, []);
 	const [summaries, setSummaries] = useLocalStorage(`${storageKey}_summaries`, []);
 
@@ -36,10 +36,11 @@ function PdfHighlighterViewer({ url, onBack }) {
 	const pdfName = useMemo(() => url.split("/").pop() || url, [url]);
 
 	const [pdfDocument, setPdfDocument] = useState(null);
+	const [zoom, setZoom] = useState(1.0);
 
 	useEffect(() => {
 		pageTrackingSetupRef.current = false;
-		
+
 		let setupIntervalId = null;
 		let pollingIntervalId = null;
 		let eventBusCleanup = null;
@@ -51,10 +52,10 @@ function PdfHighlighterViewer({ url, onBack }) {
 			}
 
 			const viewer = highlighterRef.current?.viewer;
-			
+
 			if (viewer && viewer.eventBus) {
 				pageTrackingSetupRef.current = true;
-				
+
 				// Get current page number from viewer
 				const getCurrentPage = () => {
 					try {
@@ -112,7 +113,7 @@ function PdfHighlighterViewer({ url, onBack }) {
 				viewer.eventBus.on("pagechanging", handlePageChange);
 				viewer.eventBus.on("pagesinit", handlePagesInit);
 				viewer.eventBus.on("pagechange", handlePageChange);
-				
+
 				eventBusCleanup = () => {
 					viewer.eventBus.off("pagechanging", handlePageChange);
 					viewer.eventBus.off("pagesinit", handlePagesInit);
@@ -134,7 +135,7 @@ function PdfHighlighterViewer({ url, onBack }) {
 
 				return true; // Successfully set up
 			}
-			
+
 			return false; // Viewer not ready yet
 		};
 
@@ -228,7 +229,7 @@ function PdfHighlighterViewer({ url, onBack }) {
 	const scrollToHighlight = useCallback((highlight) => {
 		const { current } = highlighterRef;
 		if (!current) return;
-		
+
 		if (current.scrollTo) {
 			current.scrollTo(highlight);
 		} else if (typeof current.scrollToHighlight === "function") {
@@ -321,6 +322,12 @@ function PdfHighlighterViewer({ url, onBack }) {
 		}
 	};
 
+	const handleZoom = useCallback((zoom) => {
+		if (zoom >= 0.5 && zoom <= 3.0) {
+			setZoom(zoom);
+		}
+	}, [setZoom]);
+
 	return (
 		<div className="pdf-viewer-container">
 			<SummaryModal
@@ -343,14 +350,16 @@ function PdfHighlighterViewer({ url, onBack }) {
 					{(pdfDoc) => {
 						pdfDocumentRef.current = pdfDoc;
 						if (!pdfDocument) {
-							setPdfDocument(pdfDoc);
+							setTimeout(() => setPdfDocument(pdfDoc), 0);
 						}
 						return (
 							<>
 								<PdfHighlighter
+									key={`viewer-${zoom}`}
 									ref={highlighterRef}
 									pdfDocument={pdfDoc}
 									highlights={highlights}
+									pdfScaleValue={zoom}
 									enableAreaSelection={(event) => event.altKey}
 									onSelectionFinished={handleSelectionFinished}
 									onScrollChange={() => {}}
@@ -379,6 +388,7 @@ function PdfHighlighterViewer({ url, onBack }) {
 				onSummarize={handleSummarizeClick}
 				onClearData={clearData}
 				canSummarize={!!pdfDocumentRef.current}
+				onZoom={handleZoom}
 			/>
 		</div>
 	);
