@@ -31,12 +31,31 @@ npm install
 npm start
 ```
 
+## 🐳 Docker
+
+### Build and run with Docker
+```bash
+docker build -t pdf-noter .
+docker run --rm -p 8080:80 pdf-noter
+```
+
+Open: `http://localhost:8080`
+
+### Run with Docker Compose (recommended)
+```bash
+docker compose up --build
+```
+
+Open: `http://localhost:8080`
+
+The Compose setup mounts `./public/pdfs` into the container at `/usr/share/nginx/html/pdfs`, so files copied into `public/pdfs` are served immediately without rebuilding the image.
+
 ## 📂 Project Structure
 - `src/components`: UI components (PDF viewer, Chat, Library).
 - `src/services`: Business logic (Ollama & Vector services).
 - `src/hooks`: Reusable React hooks.
 - `src/AppContext.jsx`: Global service state.
-- `public/pdfs`: Place your PDF files here and update `index.json`.
+- `public/pdfs`: Place PDF files here (available at `/pdfs/...` in Docker/Compose) and update `public/pdfs/index.json`.
 
 ## 🛠 Tech Stack
 - **Frontend**: React, React PDF Highlighter
