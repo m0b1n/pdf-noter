@@ -6,13 +6,12 @@ const BookmarkSidebar = ({ pdfDocument, onJumpToPage }) => {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    if (pdfDocument) {
-      pdfDocument.getOutline().then((res) => setOutline(res || []));
-    }
+    if (!pdfDocument) return;
+    pdfDocument.getOutline().then((res) => setOutline(res || []));
   }, [pdfDocument]);
 
   const handleBookmarkClick = async (dest) => {
-    if (!dest) return;
+    if (!dest || !pdfDocument) return;
     try {
       const pageRef = Array.isArray(dest) ? dest[0] : dest;
       const pageIndex = await pdfDocument.getPageIndex(pageRef);
@@ -41,11 +40,13 @@ const BookmarkSidebar = ({ pdfDocument, onJumpToPage }) => {
 
   return (
     <div className={`pdf-sidebar ${collapsed ? "panel-collapsed" : ""}`}>
-      <div className="panel-header">
-        <h4 className="sidebar-header-text">Table of Contents</h4>
+      <div className="panel-header panel-header-left">
+        {/* Hide title when collapsed so the toggle stays clickable */}
+        {!collapsed && <h4 className="sidebar-header-text">Table of Contents</h4>}
+
         <button
           type="button"
-          className="panel-toggle"
+          className="panel-toggle panel-toggle-left"
           onClick={() => setCollapsed((v) => !v)}
           aria-label={collapsed ? "Expand table of contents" : "Collapse table of contents"}
           title={collapsed ? "Expand" : "Collapse"}

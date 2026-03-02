@@ -55,6 +55,8 @@ function PdfHighlighterViewer({ url, onBack }) {
   const [pdfDocument, setPdfDocument] = useState(null);
   const [zoom, setZoom] = useState(1.0);
 
+  const [totalPages, setTotalPages] = useState(null);
+
   /**
    * IMPORTANT CHANGE:
    * Notify the backend that this document was opened.
@@ -333,12 +335,15 @@ function PdfHighlighterViewer({ url, onBack }) {
     [addHighlight]
   );
 
-  const jumpToPage = (pageNumber) => {
-    const pageElement = document.querySelector(`[data-page-number="${pageNumber}"]`);
-    if (pageElement) {
-      pageElement.scrollIntoView({ behavior: "smooth" });
-    }
-  };
+  const jumpToPage = useCallback((pageNumber) => {
+	const page = Math.max(1, Math.min(totalPages || pageNumber, pageNumber));
+	setCurrentPage(page);
+
+	const pageElement = document.querySelector(`[data-page-number="${page}"]`);
+	if (pageElement) {
+		pageElement.scrollIntoView({ behavior: "smooth" });
+	}
+	}, [totalPages]);
 
   const handleZoom = useCallback(
     (zoom) => {
@@ -363,11 +368,17 @@ function PdfHighlighterViewer({ url, onBack }) {
         {/* IMPORTANT CHANGE: PdfLoader uses pdfUrl from backend */}
         <PdfLoader url={pdfUrl} beforeLoad={<div>Loading PDF...</div>}>
           {(pdfDoc) => {
-            pdfDocumentRef.current = pdfDoc;
-            if (!pdfDocument) {
-              setTimeout(() => setPdfDocument(pdfDoc), 0);
-            }
-            return (
+			pdfDocumentRef.current = pdfDoc;
+
+			// NEW: total pages
+			if (!totalPages && pdfDoc?.numPages) {
+				setTotalPages(pdfDoc.numPages);
+			}
+
+			if (!pdfDocument) {
+				setTimeout(() => setPdfDocument(pdfDoc), 0);
+			}
+			return (
               <PdfHighlighter
                 key={`viewer-${zoom}`}
                 ref={highlighterRef}
@@ -392,15 +403,17 @@ function PdfHighlighterViewer({ url, onBack }) {
       />
 
       <StatusBar
-        pdfName={pdfName}
-        currentPage={currentPage}
-        isSummarizing={isSummarizing}
-        onBack={onBack}
-        onSummarize={handleSummarizeClick}
-        onClearData={clearData}
-        canSummarize={!!pdfDocumentRef.current}
-        onZoom={handleZoom}
-      />
+		pdfName={pdfName}
+		currentPage={currentPage}
+		totalPages={totalPages}
+		isSummarizing={isSummarizing}
+		onBack={onBack}
+		onSummarize={handleSummarizeClick}
+		onClearData={clearData}
+		canSummarize={!!pdfDocumentRef.current}
+		onZoom={handleZoom}
+		onGoToPage={jumpToPage}
+		/>
     </div>
   );
 }
