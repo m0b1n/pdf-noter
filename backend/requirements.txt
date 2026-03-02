@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+pydantic
+pydantic-settings
+python-multipart
+pypdf
+httpx
+numpy
+tiktoken
+pgvector
+psycopg[binary]
+qdrant-client
