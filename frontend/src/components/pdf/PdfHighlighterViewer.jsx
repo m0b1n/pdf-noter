@@ -380,49 +380,102 @@ function PdfHighlighterViewer({ url, onBack }) {
     }
   }, [setHighlights, setSummaries]);
 
-  const addHighlight = useCallback(
-    async ({ content, position, noteText = "", color = DEFAULT_COLOR, style = "highlight" }) => {
-      const selectedText = (content?.text || "").trim();
+    const addHighlight = useCallback(
+      async ({ content, position, noteText = "", color = DEFAULT_COLOR, style = "highlight" }) => {
+        const selectedText = (content?.text || "").trim();
 
-      if (!selectedText) {
-        throw new Error("No selected text found");
-      }
+        if (!selectedText) {
+          throw new Error("No selected text found");
+        }
 
-      const page =
-        position?.pageNumber ||
-        position?.boundingRect?.pageNumber ||
-        currentPage ||
-        1;
+        const page =
+          position?.pageNumber ||
+          position?.boundingRect?.pageNumber ||
+          currentPage ||
+          1;
 
-      const saved = await api.saveHighlight(docId, {
-        page,
-        selectedText,
-      });
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      const newHighlight = {
-        id: saved.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        content,
-        position,
-        comment: {
-          text: saved.comment || noteText,
-          color,
-          style,
-        },
-        aiData: {
-          meaning: saved.meaning,
-          synonyms: saved.synonyms,
-          persianMeaning: saved.persianMeaning,
-          exampleEn: saved.exampleEn,
-        },
-        backendId: saved.id,
-        createdAt: new Date().toISOString(),
-      };
+        // 1) Add instantly to UI
+        const optimisticHighlight = {
+          id: tempId,
+          content,
+          position,
+          comment: {
+            text: noteText?.trim()
+              ? `${noteText}\n\nGenerating definition...`
+              : "Generating definition...",
+            color,
+            style,
+          },
+          aiData: null,
+          backendId: null,
+          isLoading: true,
+          createdAt: new Date().toISOString(),
+        };
 
-      setHighlights((prev) => [newHighlight, ...prev]);
-      return newHighlight;
-    },
-    [setHighlights, docId, currentPage]
+        setHighlights((prev) => [optimisticHighlight, ...prev]);
+
+        try {
+          // 2) Send to backend
+          const saved = await api.saveHighlight(docId, {
+            page,
+            selectedText,
+          });
+
+          // 3) Replace temporary highlight with real backend result
+          setHighlights((prev) =>
+            prev.map((h) =>
+              h.id === tempId
+                ? {
+                    ...h,
+                    id: saved.id || h.id,
+                    backendId: saved.id,
+                    comment: {
+                      text: saved.comment || noteText || "",
+                      color,
+                      style,
+                    },
+                    aiData: {
+                      meaning: saved.meaning,
+                      synonyms: saved.synonyms,
+                      persianMeaning: saved.persianMeaning,
+                      exampleEn: saved.exampleEn,
+                    },
+                    isLoading: false,
+                  }
+                : h
+            )
+          );
+
+          return saved;
+        } catch (error) {
+          // 4) Show failed state
+          setHighlights((prev) =>
+            prev.map((h) =>
+              h.id === tempId
+                ? {
+                    ...h,
+                    comment: {
+                      text: noteText?.trim()
+                        ? `${noteText}\n\nFailed to generate definition.`
+                        : "Failed to generate definition.",
+                      color,
+                      style,
+                    },
+                    isLoading: false,
+                    hasError: true,
+                  }
+                : h
+            )
+          );
+
+          throw error;
+        }
+      },
+      [setHighlights, docId, currentPage]
   );
+
   const updateHighlight = useCallback(
     (highlightId, updates) => {
       setHighlights((prev) =>
@@ -495,7 +548,7 @@ function PdfHighlighterViewer({ url, onBack }) {
               initialText={highlight.comment?.text || ""}
               initialColor={highlight.comment?.color || DEFAULT_COLOR}
               initialStyle={highlight.comment?.style || "highlight"}
-              saveLabel="Update"
+              saveLabel="Translate"
               onSave={({ text, color, style }) => {
                 updateHighlight(highlight.id, {
                   comment: { text, color, style },

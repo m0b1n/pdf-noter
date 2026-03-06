@@ -165,7 +165,23 @@ const Sidebar = memo(({ summaries = [], highlights = [], onOpenSummary, onScroll
                         <div className="highlight-card-header">
                           <span className="highlight-page-badge">Page {h.position.pageNumber}</span>
                         </div>
-                        <p className="highlight-card-text">{getHighlightPreview(h.content.text)}</p>
+                        <div className="highlight-card">
+                          <p className="highlight-card-text">
+                            <strong>{h.content?.text}</strong>
+                          </p>
+
+                          <p className="highlight-card-text">
+                            {h.comment?.text}
+                          </p>
+
+                          {h.isLoading && (
+                            <p className="highlight-card-status">Generating...</p>
+                          )}
+
+                          {h.hasError && (
+                            <p className="highlight-card-status error">Generation failed</p>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -12,3 +12,4 @@ tiktoken
 pgvector
 psycopg[binary]
 qdrant-client
+ollama  

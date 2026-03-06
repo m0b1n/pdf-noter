@@ -1,21 +1,34 @@
 import json
 from typing import Any
 
+from ollama import chat
 
-def build_prompt(selected_text: str) -> str:
-    return f"""
-You are a dictionary assistant.
 
-For the given English word or short phrase, return ONLY valid JSON in this exact format:
-{{
-  "meaning": "short English meaning",
-  "synonyms": ["synonym1", "synonym2", "synonym3"],
-  "persian_meaning": "Persian translation",
-  "example_en": "One short natural English sentence using the word"
-}}
+OLLAMA_MODEL = "qwen2.5:7b"
 
-Word or phrase: {selected_text}
-""".strip()
+
+def build_messages(selected_text: str) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are a dictionary assistant. "
+                "For the given English word or short phrase, return ONLY valid JSON "
+                "with this exact shape:\n"
+                "{\n"
+                '  "meaning": "short English meaning",\n'
+                '  "synonyms": ["synonym1", "synonym2", "synonym3"],\n'
+                '  "persian_meaning": "Persian translation",\n'
+                '  "example_en": "One short natural English sentence using the word"\n'
+                "}\n"
+                "Do not include markdown fences. Do not add explanations."
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"Word or phrase: {selected_text}",
+        },
+    ]
 
 
 def normalize_qwen_output(data: dict[str, Any]) -> dict[str, Any]:
@@ -39,6 +52,31 @@ def normalize_qwen_output(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def extract_json(text: str) -> dict[str, Any]:
+    text = text.strip()
+
+    # direct JSON
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # fallback: strip markdown fences if model adds them anyway
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 3:
+            text = "\n".join(lines[1:-1]).strip()
+            return json.loads(text)
+
+    # fallback: first {...} block
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(text[start:end + 1])
+
+    raise ValueError("Model response did not contain valid JSON")
+
+
 def format_comment(data: dict[str, Any]) -> str:
     synonyms_text = ", ".join(data.get("synonyms", [])) or "N/A"
 
@@ -51,22 +89,15 @@ def format_comment(data: dict[str, Any]) -> str:
 
 
 def call_llm(selected_text: str) -> dict[str, Any]:
-    """
-    Temporary stub.
-    Replace this with your actual Qwen inference call.
-    """
-
-    _prompt = build_prompt(selected_text)
-
-    # Fake model output for now
-    fake_model_json = json.dumps(
-        {
-            "meaning": f"A simple meaning for '{selected_text}'.",
-            "synonyms": ["similar word 1", "similar word 2", "similar word 3"],
-            "persian_meaning": f"ترجمه فارسی {selected_text}",
-            "example_en": f"This is an example sentence using {selected_text}.",
-        }
+    response = chat(
+        model=OLLAMA_MODEL,
+        messages=build_messages(selected_text),
+        options={
+            "temperature": 0.1,
+        },
+        keep_alive="10m"
     )
 
-    parsed = json.loads(fake_model_json)
+    content = response["message"]["content"]
+    parsed = extract_json(content)
     return normalize_qwen_output(parsed)

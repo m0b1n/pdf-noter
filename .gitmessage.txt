@@ -1,0 +1,5 @@
+<type>(<scope>): <short summary>
+
+<detailed description>
+
+Refs: <issue/ticket number>

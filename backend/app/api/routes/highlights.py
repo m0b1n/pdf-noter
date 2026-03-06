@@ -22,7 +22,10 @@ def create_highlight(
     # Validate document row exists
     doc = db.get(Document, doc_id)
     if doc is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        doc = Document(id=doc_id, title=doc_id)
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
 
     selected_text = payload.selectedText.strip()
     if not selected_text:
@@ -42,7 +45,7 @@ def create_highlight(
         comment = None
         status = "failed"
         # For MVP, expose a simple error
-        raise HTTPException(status_code=500, detail=f"Qwen processing failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"LLM processing failed: {exc}") from exc
 
     highlight = Highlight(
         document_id=doc_id,
