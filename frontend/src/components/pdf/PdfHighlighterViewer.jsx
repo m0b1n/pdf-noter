@@ -2,8 +2,6 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   PdfLoader,
   PdfHighlighter,
-  Tip,
-  Highlight,
   Popup,
 } from "react-pdf-highlighter";
 import { useApp } from "../../AppContext";
@@ -19,6 +17,135 @@ import { api } from "../../api/client";
 // Constants moved outside component to prevent recreation on each render
 const POLLING_INTERVAL = 300; // ms
 const SETUP_POLLING_INTERVAL = 100; // ms
+
+const HIGHLIGHT_COLORS = [
+  { name: "Yellow", value: "#f7cc1f" },
+  { name: "Green", value: "#54ff90" },
+  { name: "Blue", value: "#5ba5ff" },
+  { name: "Pink", value: "#fc68bc" },
+  { name: "Purple", value: "#8367ff" },
+];
+
+// const DEFAULT_COLOR = "#fad334";
+const DEFAULT_COLOR = "#fa34d2";
+
+
+function SelectionTip({ onOpen, onSave, onCancel }) {
+  const [text, setText] = useState("");
+  const [color, setColor] = useState(DEFAULT_COLOR);
+  const [style, setStyle] = useState("highlight");
+
+  useEffect(() => {
+    onOpen?.();
+  }, [onOpen]);
+
+  const keepSelection = (e) => {
+    // 🔥 this is the key: prevents PDF selection from collapsing
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  return (
+    <div
+      className="tip-editor"
+      onMouseDown={keepSelection}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <textarea
+        className="tip-textarea"
+        placeholder="Add a note (optional)"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onMouseDown={(e) => {
+          // allow focus + typing
+          e.stopPropagation();
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+
+      <div className="tip-row">
+        <div className="tip-section">
+          <div className="tip-label">Color</div>
+          <div className="tip-colors">
+            {HIGHLIGHT_COLORS.map((c) => {
+              const active = c.value === color;
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  className="tip-color-swatch"
+                  title={c.name}
+                  onMouseDown={(e) => {
+                    keepSelection(e);
+                    setColor(c.value);
+                  }}
+                  style={{
+                    background: c.value,
+                    outline: active ? "2px solid #111827" : "none",
+                    outlineOffset: 2,
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="tip-section">
+          <div className="tip-label">Style</div>
+          <div className="tip-style-toggle">
+            <button
+              type="button"
+              className="tip-style-btn"
+              onMouseDown={(e) => {
+                keepSelection(e);
+                setStyle("highlight");
+              }}
+              style={{ borderColor: style === "highlight" ? "#111827" : undefined }}
+            >
+              Highlight
+            </button>
+            <button
+              type="button"
+              className="tip-style-btn"
+              onMouseDown={(e) => {
+                keepSelection(e);
+                setStyle("underline");
+              }}
+              style={{ borderColor: style === "underline" ? "#111827" : undefined }}
+            >
+              Underline
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="tip-actions">
+        <button
+          type="button"
+          className="tip-save-btn"
+          onMouseDown={(e) => {
+            keepSelection(e);
+            onSave({ text, color, style });
+          }}
+        >
+          Save
+        </button>
+
+        <button
+          type="button"
+          className="tip-save-btn"
+          style={{ background: "#6b7280", marginLeft: 8 }}
+          onMouseDown={(e) => {
+            keepSelection(e);
+            onCancel();
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function PdfHighlighterViewer({ url, onBack }) {
   const { ollama } = useApp();
@@ -290,50 +417,102 @@ function PdfHighlighterViewer({ url, onBack }) {
     handleSummarizePage(pdfDocumentRef.current);
   }, [handleSummarizePage]);
 
-  const highlightTransform = useCallback(
-    (highlight, index, setTip, hideTip, viewportToScaled, screenshot, isScrolledTo) => {
-      return (
-        <Popup
-          popupContent={
-            <div className="highlight-popup-content">
-              <span className="highlight-popup-label">Highlight {index + 1}</span>
-              <button
-                type="button"
-                className="highlight-remove-link"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteHighlight(highlight.id);
-                }}
-                aria-label={`Remove highlight ${index + 1}`}
-              >
-                Remove
-              </button>
-            </div>
-          }
-          onMouseOver={(popupContent) => setTip(highlight, () => popupContent)}
-          onMouseOut={hideTip}
-          key={highlight.id || index}
+const highlightTransform = useCallback(
+  (highlight, index, setTip, hideTip, viewportToScaled, screenshot, isScrolledTo) => {
+    void viewportToScaled;
+    void screenshot;
+
+    const mode = highlight.comment?.style || "highlight"; // "highlight" | "underline"
+    const color = highlight.comment?.color || DEFAULT_COLOR;
+
+    const rects = highlight.position?.rects || [];
+
+    const renderRects = rects.map((rect, i) => {
+      const style =
+        mode === "underline"
+          ? {
+              position: "absolute",
+              left: rect.left,
+              top: rect.top + rect.height - 2,
+              width: rect.width,
+              height: "0px",
+              borderBottom: `3px solid ${color}`,
+              boxShadow: isScrolledTo ? `0 2px 0 0 ${color}` : "none",
+              boxSizing: "border-box",
+              pointerEvents: "auto",
+            }
+          : {
+              position: "absolute",
+              left: rect.left,
+              top: rect.top,
+              width: rect.width,
+              height: rect.height,
+              background: color,
+              opacity: 0.45,
+              borderRadius: "2px",
+              outline: isScrolledTo ? `2px solid ${color}` : "none",
+              pointerEvents: "auto",
+            };
+
+      return <div key={i} style={style} />;
+    });
+
+    return (
+      <Popup
+        popupContent={
+          <div className="highlight-popup-content">
+            <div className="highlight-popup-label">Highlight {index + 1}</div>
+            {highlight.comment?.text ? (
+              <div className="highlight-popup-note">{highlight.comment.text}</div>
+            ) : null}
+            <button
+              type="button"
+              className="highlight-remove-link"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteHighlight(highlight.id);
+              }}
+            >
+              Remove
+            </button>
+          </div>
+        }
+        onMouseOver={(popupContent) => setTip(highlight, () => popupContent)}
+        onMouseOut={hideTip}
+        key={highlight.id || index}
+      >
+        <div
+          className="custom-highlight-layer"
+          style={{ position: "absolute", inset: 0 }}
         >
-          <Highlight isScrolledTo={isScrolledTo} position={highlight.position} comment={highlight.comment} />
-        </Popup>
-      );
-    },
-    [deleteHighlight]
+          {renderRects}
+        </div>
+      </Popup>
+    );
+  },
+  [deleteHighlight]
   );
 
   const handleSelectionFinished = useCallback(
-    (pos, content, hide, transform) => (
-      <Tip
-        onOpen={transform}
-        onConfirm={(comment) => {
-          addHighlight({ content, position: pos, comment });
-          hide();
-        }}
-        render={() => null}
-      />
-    ),
-    [addHighlight]
-  );
+	(position, content, hideTipAndSelection, transformSelection) => {
+		return (
+		<SelectionTip
+			onOpen={transformSelection}
+			onCancel={hideTipAndSelection}
+			onSave={({ text, color, style }) => {
+				console.log("Saving highlight:", { text, color, style });
+			addHighlight({
+				content,
+				position,
+				comment: { text, color, style },
+			});
+			hideTipAndSelection();
+			}}
+		/>
+		);
+	},
+	[addHighlight]
+	);
 
   const jumpToPage = useCallback((pageNumber) => {
 	const page = Math.max(1, Math.min(totalPages || pageNumber, pageNumber));
