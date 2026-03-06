@@ -731,17 +731,18 @@
 
 /* Tip editor UI */
 .tip-editor {
-  width: 280px;
-  padding: 10px;
+  width: 300px;
+  max-width: 300px;
+  padding: 12px;
   background: white;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
 }
 
 .tip-textarea {
-  width: 100%;
+  width: 95%;
   height: 70px;
-  resize: none;
+  resize: vertical;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 8px;

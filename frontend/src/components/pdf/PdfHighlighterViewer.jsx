@@ -30,17 +30,24 @@ const HIGHLIGHT_COLORS = [
 const DEFAULT_COLOR = "#fa34d2";
 
 
-function SelectionTip({ onOpen, onSave, onCancel }) {
-  const [text, setText] = useState("");
-  const [color, setColor] = useState(DEFAULT_COLOR);
-  const [style, setStyle] = useState("highlight");
+function SelectionTip({
+  onOpen,
+  onSave,
+  onCancel,
+  initialText = "",
+  initialColor = DEFAULT_COLOR,
+  initialStyle = "highlight",
+  saveLabel = "Save",
+}) {
+  const [text, setText] = useState(initialText);
+  const [color, setColor] = useState(initialColor);
+  const [style, setStyle] = useState(initialStyle);
 
   useEffect(() => {
     onOpen?.();
   }, [onOpen]);
 
   const keepSelection = (e) => {
-    // 🔥 this is the key: prevents PDF selection from collapsing
     e.preventDefault();
     e.stopPropagation();
   };
@@ -57,7 +64,6 @@ function SelectionTip({ onOpen, onSave, onCancel }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onMouseDown={(e) => {
-          // allow focus + typing
           e.stopPropagation();
         }}
         onClick={(e) => e.stopPropagation()}
@@ -128,7 +134,7 @@ function SelectionTip({ onOpen, onSave, onCancel }) {
             onSave({ text, color, style });
           }}
         >
-          Save
+          {saveLabel}
         </button>
 
         <button
@@ -384,6 +390,27 @@ function PdfHighlighterViewer({ url, onBack }) {
     },
     [setHighlights]
   );
+  const updateHighlight = useCallback(
+    (highlightId, updates) => {
+      setHighlights((prev) =>
+        prev.map((h) =>
+          h.id === highlightId
+            ? {
+                ...h,
+                ...updates,
+                comment: {
+                  ...h.comment,
+                  ...(updates.comment || {}),
+                },
+              }
+            : h
+        )
+      );
+    },
+    [setHighlights]
+  );
+
+  
 
   const scrollToHighlight = useCallback((highlight) => {
     const { current } = highlighterRef;
@@ -417,80 +444,125 @@ function PdfHighlighterViewer({ url, onBack }) {
     handleSummarizePage(pdfDocumentRef.current);
   }, [handleSummarizePage]);
 
-const highlightTransform = useCallback(
-  (highlight, index, setTip, hideTip, viewportToScaled, screenshot, isScrolledTo) => {
-    void viewportToScaled;
-    void screenshot;
+  const highlightTransform = useCallback(
+    (highlight, index, setTip, hideTip, viewportToScaled, screenshot, isScrolledTo) => {
+      void viewportToScaled;
+      void screenshot;
 
-    const mode = highlight.comment?.style || "highlight"; // "highlight" | "underline"
-    const color = highlight.comment?.color || DEFAULT_COLOR;
+      const mode = highlight.comment?.style || "highlight";
+      const color = highlight.comment?.color || DEFAULT_COLOR;
 
-    const rects = highlight.position?.rects || [];
+      const rects = highlight.position?.rects || [];
 
-    const renderRects = rects.map((rect, i) => {
-      const style =
-        mode === "underline"
-          ? {
-              position: "absolute",
-              left: rect.left,
-              top: rect.top + rect.height - 2,
-              width: rect.width,
-              height: "0px",
-              borderBottom: `3px solid ${color}`,
-              boxShadow: isScrolledTo ? `0 2px 0 0 ${color}` : "none",
-              boxSizing: "border-box",
-              pointerEvents: "auto",
-            }
-          : {
-              position: "absolute",
-              left: rect.left,
-              top: rect.top,
-              width: rect.width,
-              height: rect.height,
-              background: color,
-              opacity: 0.45,
-              borderRadius: "2px",
-              outline: isScrolledTo ? `2px solid ${color}` : "none",
-              pointerEvents: "auto",
-            };
-
-      return <div key={i} style={style} />;
-    });
-
-    return (
-      <Popup
-        popupContent={
-          <div className="highlight-popup-content">
-            <div className="highlight-popup-label">Highlight {index + 1}</div>
-            {highlight.comment?.text ? (
-              <div className="highlight-popup-note">{highlight.comment.text}</div>
-            ) : null}
-            <button
-              type="button"
-              className="highlight-remove-link"
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteHighlight(highlight.id);
+      const openEditor = () => {
+        setTip(
+          highlight,
+          () => (
+            <SelectionTip
+              initialText={highlight.comment?.text || ""}
+              initialColor={highlight.comment?.color || DEFAULT_COLOR}
+              initialStyle={highlight.comment?.style || "highlight"}
+              saveLabel="Update"
+              onSave={({ text, color, style }) => {
+                updateHighlight(highlight.id, {
+                  comment: { text, color, style },
+                });
+                hideTip();
               }}
-            >
-              Remove
-            </button>
-          </div>
-        }
-        onMouseOver={(popupContent) => setTip(highlight, () => popupContent)}
-        onMouseOut={hideTip}
-        key={highlight.id || index}
-      >
-        <div
-          className="custom-highlight-layer"
-          style={{ position: "absolute", inset: 0 }}
+              onCancel={hideTip}
+            />
+          )
+        );
+      };
+
+      const renderRects = rects.map((rect, i) => {
+        const style =
+          mode === "underline"
+            ? {
+                position: "absolute",
+                left: rect.left,
+                top: rect.top + rect.height - 2,
+                width: rect.width,
+                height: "0px",
+                borderBottom: `3px solid ${color}`,
+                boxShadow: isScrolledTo ? `0 2px 0 0 ${color}` : "none",
+                boxSizing: "border-box",
+                pointerEvents: "auto",
+                cursor: "pointer",
+              }
+            : {
+                position: "absolute",
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height,
+                background: color,
+                opacity: 0.45,
+                borderRadius: "2px",
+                outline: isScrolledTo ? `2px solid ${color}` : "none",
+                pointerEvents: "auto",
+                cursor: "pointer",
+              };
+
+        return (
+          <div
+            key={i}
+            style={style}
+            onClick={(e) => {
+              e.stopPropagation();
+              openEditor();
+            }}
+          />
+        );
+      });
+
+      return (
+        <Popup
+          popupContent={
+            <div className="highlight-popup-content">
+              <div className="highlight-popup-label">Highlight {index + 1}</div>
+              {highlight.comment?.text ? (
+                <div className="highlight-popup-note">{highlight.comment.text}</div>
+              ) : null}
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="highlight-remove-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEditor();
+                  }}
+                >
+                  Edit
+                </button>
+
+                <button
+                  type="button"
+                  className="highlight-remove-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteHighlight(highlight.id);
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          }
+          onMouseOver={(popupContent) => setTip(highlight, () => popupContent)}
+          onMouseOut={hideTip}
+          key={highlight.id || index}
         >
-          {renderRects}
-        </div>
-      </Popup>
-    );
-  },
-  [deleteHighlight]
+          <div
+            className="custom-highlight-layer"
+            style={{ position: "absolute", inset: 0 }}
+          >
+            {renderRects}
+          </div>
+        </Popup>
+      );
+    },
+    [deleteHighlight, updateHighlight]
   );
 
   const handleSelectionFinished = useCallback(
