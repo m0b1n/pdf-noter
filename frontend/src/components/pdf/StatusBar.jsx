@@ -96,7 +96,7 @@ const StatusBar = memo(
               </div>
             </div>
 
-            <button
+            {/* <button
               type="button"
               onClick={onSummarize}
               disabled={isSummarizing || !canSummarize}
@@ -105,7 +105,7 @@ const StatusBar = memo(
               aria-busy={isSummarizing}
             >
               {isSummarizing ? "⏳ Summarizing..." : `✨ Summarize Page ${currentPage}`}
-            </button>
+            </button> */}
 
             <button
               type="button"

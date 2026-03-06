@@ -7,10 +7,11 @@ from datetime import datetime
 from app.core.config import settings
 from app.db.session import SessionLocal, engine, Base
 from app.models.document import Document
+# from app.models.highlight import Highlight
 
 router = APIRouter()
 
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()

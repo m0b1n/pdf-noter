@@ -6,11 +6,29 @@ export const api = {
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
+
   pdfUrl: (docId) => `${API_BASE}/api/documents/${encodeURIComponent(docId)}/file`,
+
   markOpen: async (docId) => {
     const r = await fetch(`${API_BASE}/api/documents/${encodeURIComponent(docId)}/open`, {
       method: "POST",
     });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+
+  saveHighlight: async (docId, payload) => {
+    const r = await fetch(
+      `${API_BASE}/api/documents/${encodeURIComponent(docId)}/highlights`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },

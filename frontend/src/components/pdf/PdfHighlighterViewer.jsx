@@ -381,14 +381,47 @@ function PdfHighlighterViewer({ url, onBack }) {
   }, [setHighlights, setSummaries]);
 
   const addHighlight = useCallback(
-    (highlight) => {
+    async ({ content, position, noteText = "", color = DEFAULT_COLOR, style = "highlight" }) => {
+      const selectedText = (content?.text || "").trim();
+
+      if (!selectedText) {
+        throw new Error("No selected text found");
+      }
+
+      const page =
+        position?.pageNumber ||
+        position?.boundingRect?.pageNumber ||
+        currentPage ||
+        1;
+
+      const saved = await api.saveHighlight(docId, {
+        page,
+        selectedText,
+      });
+
       const newHighlight = {
-        ...highlight,
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        id: saved.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        content,
+        position,
+        comment: {
+          text: saved.comment || noteText,
+          color,
+          style,
+        },
+        aiData: {
+          meaning: saved.meaning,
+          synonyms: saved.synonyms,
+          persianMeaning: saved.persianMeaning,
+          exampleEn: saved.exampleEn,
+        },
+        backendId: saved.id,
+        createdAt: new Date().toISOString(),
       };
+
       setHighlights((prev) => [newHighlight, ...prev]);
+      return newHighlight;
     },
-    [setHighlights]
+    [setHighlights, docId, currentPage]
   );
   const updateHighlight = useCallback(
     (highlightId, updates) => {
@@ -520,11 +553,11 @@ function PdfHighlighterViewer({ url, onBack }) {
         <Popup
           popupContent={
             <div className="highlight-popup-content">
-              <div className="highlight-popup-label">Highlight {index + 1}</div>
               {highlight.comment?.text ? (
                 <div className="highlight-popup-note">{highlight.comment.text}</div>
               ) : null}
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+
+              <div style={{ display: "flex", gap: 8 }}>
                 <button
                   type="button"
                   className="highlight-remove-link"
@@ -566,25 +599,34 @@ function PdfHighlighterViewer({ url, onBack }) {
   );
 
   const handleSelectionFinished = useCallback(
-	(position, content, hideTipAndSelection, transformSelection) => {
-		return (
-		<SelectionTip
-			onOpen={transformSelection}
-			onCancel={hideTipAndSelection}
-			onSave={({ text, color, style }) => {
-				console.log("Saving highlight:", { text, color, style });
-			addHighlight({
-				content,
-				position,
-				comment: { text, color, style },
-			});
-			hideTipAndSelection();
-			}}
-		/>
-		);
-	},
-	[addHighlight]
-	);
+    (position, content, hideTipAndSelection, transformSelection) => {
+      return (
+        <SelectionTip
+          onOpen={transformSelection}
+          onCancel={hideTipAndSelection}
+          onSave={async ({ text, color, style }) => {
+            try {
+              console.log("Saving highlight:", { text, color, style });
+
+              await addHighlight({
+                content,
+                position,
+                noteText: text,
+                color,
+                style,
+              });
+
+              hideTipAndSelection();
+            } catch (error) {
+              console.error("Failed to save highlight:", error);
+              alert("Failed to save highlight to backend.");
+            }
+          }}
+        />
+      );
+    },
+    [addHighlight]
+  );
 
   const jumpToPage = useCallback((pageNumber) => {
 	const page = Math.max(1, Math.min(totalPages || pageNumber, pageNumber));

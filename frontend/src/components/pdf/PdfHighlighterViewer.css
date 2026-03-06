@@ -451,9 +451,17 @@
 }
 
 .highlight-popup-label {
-  font-size: 13px;
+  font-size: 9px;
   font-weight: 600;
   color: #374151;
+}
+
+.highlight-popup-note {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #374151;
+  margin-bottom: 6px;
 }
 
 .highlight-remove-link {
@@ -839,4 +847,11 @@
   background: transparent !important;
   border-bottom-style: solid;
   opacity: 1;
+}
+
+.highlight-card-comment {
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
 }
