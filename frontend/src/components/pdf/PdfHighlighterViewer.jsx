@@ -167,10 +167,12 @@ function PdfHighlighterViewer({ url, onBack }) {
   // (optional) keep storage key stable per document id
   const storageKey = useMemo(() => `pdf_storage_${docId}`, [docId]);
 
-  const [highlights, setHighlights] = useLocalStorage(
-    `${storageKey}_highlights`,
-    []
-  );
+  // const [highlights, setHighlights] = useLocalStorage(
+  //   `${storageKey}_highlights`,
+  //   []
+  // );
+  const [highlights, setHighlights] = useState([]);
+  const [highlightsLoading, setHighlightsLoading] = useState(true);
   const [summaries, setSummaries] = useLocalStorage(
     `${storageKey}_summaries`,
     []
@@ -201,6 +203,33 @@ function PdfHighlighterViewer({ url, onBack }) {
       console.error("Failed to notify backend that doc was opened:", e);
     });
   }, [docId]);
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadHighlights() {
+    if (!docId) return;
+
+    setHighlightsLoading(true);
+    try {
+      const data = await api.getHighlights(docId);
+      if (!cancelled) {
+        setHighlights(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Failed to load highlights:", err);
+      if (!cancelled) setHighlights([]);
+    } finally {
+      if (!cancelled) setHighlightsLoading(false);
+    }
+  }
+
+  loadHighlights();
+
+  return () => {
+    cancelled = true;
+  };
+}, [docId]);
 
   useEffect(() => {
     pageTrackingSetupRef.current = false;
@@ -375,10 +404,10 @@ function PdfHighlighterViewer({ url, onBack }) {
 
   const clearData = useCallback(() => {
     if (window.confirm("Clear all notes and summaries for this PDF?")) {
-      setHighlights([]);
+      // setHighlights([]);
       setSummaries([]);
     }
-  }, [setHighlights, setSummaries]);
+  }, [setSummaries]);
 
     const addHighlight = useCallback(
       async ({ content, position, noteText = "", color = DEFAULT_COLOR, style = "highlight" }) => {
@@ -388,15 +417,8 @@ function PdfHighlighterViewer({ url, onBack }) {
           throw new Error("No selected text found");
         }
 
-        const page =
-          position?.pageNumber ||
-          position?.boundingRect?.pageNumber ||
-          currentPage ||
-          1;
-
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-        // 1) Add instantly to UI
         const optimisticHighlight = {
           id: tempId,
           content,
@@ -417,32 +439,27 @@ function PdfHighlighterViewer({ url, onBack }) {
         setHighlights((prev) => [optimisticHighlight, ...prev]);
 
         try {
-          // 2) Send to backend
           const saved = await api.saveHighlight(docId, {
-            page,
-            selectedText,
+            id: tempId,
+            content,
+            position,
+            noteText,
+            color,
+            style,
           });
 
-          // 3) Replace temporary highlight with real backend result
           setHighlights((prev) =>
             prev.map((h) =>
               h.id === tempId
                 ? {
-                    ...h,
-                    id: saved.id || h.id,
-                    backendId: saved.id,
-                    comment: {
-                      text: saved.comment || noteText || "",
+                    ...saved,
+                    comment: saved.comment ?? {
+                      text: noteText || "",
                       color,
                       style,
                     },
-                    aiData: {
-                      meaning: saved.meaning,
-                      synonyms: saved.synonyms,
-                      persianMeaning: saved.persianMeaning,
-                      exampleEn: saved.exampleEn,
-                    },
                     isLoading: false,
+                    hasError: false,
                   }
                 : h
             )
@@ -450,7 +467,6 @@ function PdfHighlighterViewer({ url, onBack }) {
 
           return saved;
         } catch (error) {
-          // 4) Show failed state
           setHighlights((prev) =>
             prev.map((h) =>
               h.id === tempId
@@ -473,8 +489,8 @@ function PdfHighlighterViewer({ url, onBack }) {
           throw error;
         }
       },
-      [setHighlights, docId, currentPage]
-  );
+      [setHighlights, docId]
+    );
 
   const updateHighlight = useCallback(
     (highlightId, updates) => {
@@ -512,10 +528,19 @@ function PdfHighlighterViewer({ url, onBack }) {
   }, []);
 
   const deleteHighlight = useCallback(
-    (highlightId) => {
+    async (highlightId) => {
+      const previous = highlights;
+
       setHighlights((prev) => prev.filter((h) => h.id !== highlightId));
+
+      try {
+        await api.deleteHighlight(docId, highlightId);
+      } catch (err) {
+        console.error("Failed to delete highlight:", err);
+        setHighlights(previous);
+      }
     },
-    [setHighlights]
+    [docId, highlights]
   );
 
   const handleCloseModal = useCallback(() => {

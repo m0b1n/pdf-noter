@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+import uuid
 
 from app.api.routes.documents import get_db, pdf_path_for
 from app.models.document import Document
@@ -9,8 +10,31 @@ from app.services.llm_service import call_llm, format_comment
 
 router = APIRouter()
 
+@router.get("/documents/{doc_id}/highlights")
+def get_document_highlights(doc_id: str, db: Session = Depends(get_db)):
+    _ = pdf_path_for(doc_id)
 
-@router.post("/documents/{doc_id}/highlights", response_model=HighlightResponse)
+    rows = (
+        db.query(Highlight)
+        .filter(Highlight.document_id == doc_id)
+        .order_by(Highlight.created_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": h.id,
+            "documentId": h.document_id,
+            "content": h.content,
+            "position": h.position,
+            "comment": h.comment,
+            "aiData": h.ai_data,
+            "createdAt": h.created_at.isoformat(),
+        }
+        for h in rows
+    ]
+
+@router.post("/documents/{doc_id}/highlights")
 def create_highlight(
     doc_id: str,
     payload: HighlightCreate,
@@ -19,43 +43,55 @@ def create_highlight(
     # Validate PDF exists on disk
     _ = pdf_path_for(doc_id)
 
-    # Validate document row exists
+    # Ensure document exists
     doc = db.get(Document, doc_id)
     if doc is None:
         doc = Document(id=doc_id, title=doc_id)
         db.add(doc)
-        db.commit()
-        db.refresh(doc)
+        db.flush()
 
-    selected_text = payload.selectedText.strip()
+    selected_text = (payload.content or {}).get("text", "").strip()
     if not selected_text:
-        raise HTTPException(status_code=400, detail="selectedText cannot be empty")
+        raise HTTPException(status_code=400, detail="Selected text cannot be empty")
 
     try:
         llm_data = call_llm(selected_text)
-        comment = format_comment(llm_data)
-        status = "done"
-    except Exception as exc:
-        llm_data = {
-            "meaning": "",
-            "synonyms": [],
-            "persian_meaning": "",
-            "example_en": "",
+
+        ai_data = {
+            "meaning": llm_data.get("meaning", ""),
+            "synonyms": llm_data.get("synonyms", []),
+            "persianMeaning": llm_data.get("persian_meaning", ""),
+            "exampleEn": llm_data.get("example_en", ""),
         }
-        comment = None
-        status = "failed"
-        # For MVP, expose a simple error
+
+        generated_comment = format_comment(llm_data)
+
+        user_note = (payload.noteText or "").strip()
+        if user_note and generated_comment:
+            comment_text = f"{user_note}\n\n{generated_comment}"
+        elif user_note:
+            comment_text = user_note
+        else:
+            comment_text = generated_comment or ""
+
+        comment = {
+            "text": comment_text,
+            "color": payload.color,
+            "style": payload.style or "highlight",
+        }
+
+        status = "done"
+
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=f"LLM processing failed: {exc}") from exc
 
     highlight = Highlight(
+        id=str(uuid.uuid4()),
         document_id=doc_id,
-        page=payload.page,
-        selected_text=selected_text,
-        meaning=llm_data["meaning"],
-        synonyms=", ".join(llm_data["synonyms"]),
-        persian_meaning=llm_data["persian_meaning"],
-        example_en=llm_data["example_en"],
+        content=payload.content,
+        position=payload.position,
         comment=comment,
+        ai_data=ai_data,
         status=status,
     )
 
@@ -63,15 +99,37 @@ def create_highlight(
     db.commit()
     db.refresh(highlight)
 
-    return HighlightResponse(
-        id=highlight.id,
-        documentId=doc_id,
-        page=highlight.page,
-        selectedText=highlight.selected_text,
-        meaning=highlight.meaning,
-        synonyms=llm_data["synonyms"],
-        persianMeaning=highlight.persian_meaning,
-        exampleEn=highlight.example_en,
-        comment=highlight.comment,
-        status=highlight.status,
+    return {
+        "id": highlight.id,
+        "backendId": highlight.id,
+        "content": highlight.content,
+        "position": highlight.position,
+        "comment": highlight.comment,
+        "aiData": highlight.ai_data,
+        "status": highlight.status,
+        "createdAt": highlight.created_at.isoformat(),
+    }
+
+@router.delete("/documents/{doc_id}/highlights/{highlight_id}")
+def delete_document_highlight(
+    doc_id: str,
+    highlight_id: str,
+    db: Session = Depends(get_db),
+):
+    _ = pdf_path_for(doc_id)
+
+    row = (
+        db.query(Highlight)
+        .filter(
+            Highlight.id == highlight_id,
+            Highlight.document_id == doc_id,
+        )
+        .first()
     )
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "id": highlight_id}

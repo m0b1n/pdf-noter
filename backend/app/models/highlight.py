@@ -1,33 +1,23 @@
-from datetime import datetime
-import uuid
-
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from datetime import datetime, timezone
+from sqlalchemy import String, DateTime, ForeignKey, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.db.session import Base
-
 
 class Highlight(Base):
     __tablename__ = "highlights"
 
-    id: Mapped[str] = mapped_column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
     document_id: Mapped[str] = mapped_column(
-        ForeignKey("documents.id"),
-        index=True,
+        String,
+        ForeignKey("documents.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
-    page: Mapped[int] = mapped_column(Integer, nullable=False)
-    selected_text: Mapped[str] = mapped_column(Text, nullable=False)
 
-    meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
-    synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)  # CSV for MVP
-    persian_meaning: Mapped[str | None] = mapped_column(Text, nullable=True)
-    example_en: Mapped[str | None] = mapped_column(Text, nullable=True)
-    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[dict] = mapped_column(JSON, nullable=False)
+    position: Mapped[dict] = mapped_column(JSON, nullable=False)
+    comment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    ai_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))

@@ -7,12 +7,22 @@ export const api = {
     return r.json();
   },
 
-  pdfUrl: (docId) => `${API_BASE}/api/documents/${encodeURIComponent(docId)}/file`,
+  pdfUrl: (docId) =>
+    `${API_BASE}/api/documents/${encodeURIComponent(docId)}/file`,
 
   markOpen: async (docId) => {
-    const r = await fetch(`${API_BASE}/api/documents/${encodeURIComponent(docId)}/open`, {
-      method: "POST",
-    });
+    const r = await fetch(
+      `${API_BASE}/api/documents/${encodeURIComponent(docId)}/open`,
+      { method: "POST" }
+    );
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+
+  getHighlights: async (docId) => {
+    const r = await fetch(
+      `${API_BASE}/api/documents/${encodeURIComponent(docId)}/highlights`
+    );
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
@@ -28,7 +38,17 @@ export const api = {
         body: JSON.stringify(payload),
       }
     );
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
 
+  deleteHighlight: async (docId, highlightId) => {
+    const r = await fetch(
+      `${API_BASE}/api/documents/${encodeURIComponent(docId)}/highlights/${encodeURIComponent(highlightId)}`,
+      {
+        method: "DELETE",
+      }
+    );
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   },
