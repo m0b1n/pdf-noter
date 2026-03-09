@@ -9,6 +9,9 @@ class HighlightCreate(BaseModel):
     noteText: str | None = ""
     color: str | None = None
     style: str | None = "highlight"
+    contextSentence: str | None = None
+    contextParagraph: str | None = None
+
 
 
 class HighlightResponse(BaseModel):

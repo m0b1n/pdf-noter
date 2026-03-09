@@ -53,9 +53,13 @@ def create_highlight(
     selected_text = (payload.content or {}).get("text", "").strip()
     if not selected_text:
         raise HTTPException(status_code=400, detail="Selected text cannot be empty")
-
+    
+    print(f"Received highlight creation request for document {doc_id} with selected text: '{selected_text}' \n Context sentence: '{payload.contextSentence}' \n Context paragraph: '{payload.contextParagraph}'")
     try:
-        llm_data = call_llm(selected_text)
+        llm_data = call_llm(selected_text=selected_text,
+                            context_sentence=payload.contextSentence,
+                            context_paragraph=payload.contextParagraph
+                    )
 
         ai_data = {
             "meaning": llm_data.get("meaning", ""),

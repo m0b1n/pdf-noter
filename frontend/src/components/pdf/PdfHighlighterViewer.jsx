@@ -15,6 +15,140 @@ import BookmarkSidebar from "./BookmarkSidebar";
 import { api } from "../../api/client";
 
 // Constants moved outside component to prevent recreation on each render
+
+const normalizeWhitespace = (text = "") =>
+  text.replace(/\s+/g, " ").trim();
+
+const looksLikeSentenceBlock = (text = "") => {
+  const clean = normalizeWhitespace(text);
+  if (!clean) return false;
+
+  const sentenceMatches = clean.match(/[.!?](?:\s|$)/g) || [];
+  return sentenceMatches.length >= 1 || clean.length > 120;
+};
+
+const findMatchRange = (pageText, selectedText) => {
+  const normalizedPage = normalizeWhitespace(pageText);
+  const normalizedSelected = normalizeWhitespace(selectedText);
+
+  if (!normalizedPage || !normalizedSelected) {
+    return {
+      pageText: normalizedPage,
+      selectedText: normalizedSelected,
+      start: -1,
+      end: -1,
+    };
+  }
+
+  const start = normalizedPage
+    .toLowerCase()
+    .indexOf(normalizedSelected.toLowerCase());
+
+  return {
+    pageText: normalizedPage,
+    selectedText: normalizedSelected,
+    start,
+    end: start === -1 ? -1 : start + normalizedSelected.length,
+  };
+};
+
+const extractSentenceContext = (pageText, start, end) => {
+  if (start < 0 || end < 0) return "";
+
+  let sentenceStart = 0;
+  let sentenceEnd = pageText.length;
+
+  for (let i = start - 1; i >= 0; i--) {
+    const ch = pageText[i];
+    if (ch === "." || ch === "!" || ch === "?" || ch === "\n") {
+      sentenceStart = i + 1;
+      break;
+    }
+  }
+
+  for (let i = end; i < pageText.length; i++) {
+    const ch = pageText[i];
+    if (ch === "." || ch === "!" || ch === "?" || ch === "\n") {
+      sentenceEnd = i + 1;
+      break;
+    }
+  }
+
+  return normalizeWhitespace(pageText.slice(sentenceStart, sentenceEnd));
+};
+
+const extractParagraphContext = (pageText, start, end) => {
+  if (start < 0 || end < 0) return normalizeWhitespace(pageText);
+
+  const paragraphBreakRegex = /\n\s*\n/g;
+
+  let paragraphStart = 0;
+  let paragraphEnd = pageText.length;
+
+  for (const match of pageText.matchAll(paragraphBreakRegex)) {
+    const matchIndex = match.index ?? 0;
+
+    if (matchIndex < start) {
+      paragraphStart = matchIndex + match[0].length;
+    } else if (matchIndex >= end) {
+      paragraphEnd = matchIndex;
+      break;
+    }
+  }
+
+  const paragraph = normalizeWhitespace(pageText.slice(paragraphStart, paragraphEnd));
+
+  if (paragraph) return paragraph;
+
+  const fallbackStart = Math.max(0, start - 220);
+  const fallbackEnd = Math.min(pageText.length, end + 220);
+  return normalizeWhitespace(pageText.slice(fallbackStart, fallbackEnd));
+};
+
+const buildHighlightContext = (pageText, selectedText) => {
+  const cleanSelected = normalizeWhitespace(selectedText);
+  const cleanPage = pageText || "";
+
+  if (!cleanSelected) {
+    return {
+      contextSentence: "",
+      contextParagraph: "",
+    };
+  }
+
+  if (!cleanPage.trim()) {
+    return {
+      contextSentence: cleanSelected,
+      contextParagraph: "",
+    };
+  }
+
+  const { pageText: normalizedPage, start, end } = findMatchRange(cleanPage, cleanSelected);
+
+  if (looksLikeSentenceBlock(cleanSelected)) {
+    return {
+      contextSentence: cleanSelected,
+      contextParagraph:
+        start !== -1
+          ? extractParagraphContext(normalizedPage, start, end)
+          : normalizedPage,
+    };
+  }
+
+  if (start === -1) {
+    return {
+      contextSentence: cleanSelected,
+      contextParagraph: normalizedPage,
+    };
+  }
+
+  return {
+    contextSentence:
+      extractSentenceContext(normalizedPage, start, end) || cleanSelected,
+    contextParagraph: extractParagraphContext(normalizedPage, start, end),
+  };
+};
+
 const POLLING_INTERVAL = 300; // ms
 const SETUP_POLLING_INTERVAL = 100; // ms
 
@@ -363,7 +497,31 @@ function PdfHighlighterViewer({ url, onBack }) {
     try {
       const page = await pdfDocument.getPage(pageNumber);
       const textContent = await page.getTextContent();
-      return textContent.items.map((item) => item.str).join(" ");
+
+      let result = "";
+      let lastY = null;
+
+      for (const item of textContent.items) {
+        const text = item.str || "";
+        const y = item.transform?.[5];
+
+        if (lastY !== null && y !== undefined) {
+          const lineGap = Math.abs(y - lastY);
+
+          if (lineGap > 14) {
+            result += "\n\n";
+          } else {
+            result += " ";
+          }
+        } else if (result) {
+          result += " ";
+        }
+
+        result += text;
+        lastY = y;
+      }
+
+      return result;
     } catch (error) {
       console.error("Error extracting page text:", error);
       return "";
@@ -417,6 +575,12 @@ function PdfHighlighterViewer({ url, onBack }) {
           throw new Error("No selected text found");
         }
 
+        const page =
+          position?.pageNumber ||
+          position?.boundingRect?.pageNumber ||
+          currentPage ||
+          1;
+
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
         const optimisticHighlight = {
@@ -439,6 +603,15 @@ function PdfHighlighterViewer({ url, onBack }) {
         setHighlights((prev) => [optimisticHighlight, ...prev]);
 
         try {
+          const pageText = pdfDocumentRef.current
+            ? await getPageText(pdfDocumentRef.current, page)
+            : "";
+
+          const { contextSentence, contextParagraph } = buildHighlightContext(
+            pageText,
+            selectedText
+          );
+
           const saved = await api.saveHighlight(docId, {
             id: tempId,
             content,
@@ -446,6 +619,8 @@ function PdfHighlighterViewer({ url, onBack }) {
             noteText,
             color,
             style,
+            contextSentence,
+            contextParagraph,
           });
 
           setHighlights((prev) =>
@@ -489,7 +664,7 @@ function PdfHighlighterViewer({ url, onBack }) {
           throw error;
         }
       },
-      [setHighlights, docId]
+      [setHighlights, docId, currentPage, getPageText]
     );
 
   const updateHighlight = useCallback(
