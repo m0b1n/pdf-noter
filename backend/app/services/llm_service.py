@@ -1,10 +1,17 @@
 import json
+import os
 from typing import Any
 
-from ollama import chat
+from ollama import Client
 
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
-OLLAMA_MODEL = "qwen2.5:7b"
+# Increase timeout because first response from a local model in Docker can be slow.
+client = Client(
+    host=OLLAMA_HOST,
+    timeout=300.0,  # seconds
+)
 
 
 def build_messages(
@@ -109,7 +116,7 @@ def call_llm(
     context_sentence: str | None = None,
     context_paragraph: str | None = None,
 ) -> dict[str, Any]:
-    response = chat(
+    response = client.chat(
         model=OLLAMA_MODEL,
         messages=build_messages(
             selected_text=selected_text,
