@@ -1,0 +1,105 @@
+.pdf-library-container {
+  max-width: 1000px;
+  margin: 40px auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.pdf-library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #f3f4f6;
+  padding-bottom: 20px;
+}
+
+.pdf-library-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0;
+}
+
+.pdf-count-badge {
+  background: #e5e7eb;
+  color: #4b5563;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pdf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.pdf-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pdf-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.pdf-info {
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+
+.pdf-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.pdf-filename {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  word-break: break-all;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.pdf-actions {
+  border-top: 1px solid #f3f4f6;
+  padding-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.library-tip {
+  margin-top: 40px;
+  padding: 16px;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loading-state, .error-state {
+  text-align: center;
+  padding: 60px;
+  color: #6b7280;
+}
+
+.error-state {
+  color: #ef4444;
+}
+
