@@ -1,22 +1,17 @@
 import { useState, useEffect } from "react";
 import PdfEmbedder from "./PdfEmbedder";
 import "./PdfLibrary.css";
+import { api } from "../../api/client";
 
 const StaticPdfList = ({ onSelectPdf }) => {
-  const [pdfList, setPdfList] = useState([]);
+  const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("/pdfs/index.json")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Could not find index.json in public/pdfs/");
-        }
-        return response.json();
-      })
+    api.listDocuments()
       .then((data) => {
-        setPdfList(data);
+        setDocs(data);
         setLoading(false);
       })
       .catch((err) => {
@@ -25,30 +20,26 @@ const StaticPdfList = ({ onSelectPdf }) => {
       });
   }, []);
 
-  if (loading) {
-    return <div className="loading-state">Loading PDF Library...</div>;
-  }
-
-  if (error) {
-    return <div className="error-state">Error: {error}</div>;
-  }
+  if (loading) return <div className="loading-state">Loading PDF Library...</div>;
+  if (error) return <div className="error-state">Error: {error}</div>;
 
   return (
     <div className="pdf-library-container">
       <header className="pdf-library-header">
         <h1 className="pdf-library-title">My Documents</h1>
-        <span className="pdf-count-badge">{pdfList.length} Files</span>
+        <span className="pdf-count-badge">{docs.length} Files</span>
       </header>
 
       <div className="pdf-grid">
-        {pdfList.map((filename) => (
-          <div key={filename} className="pdf-card">
-            <div className="pdf-info" onClick={() => onSelectPdf(`${filename}`)}>
+        {docs.map((doc) => (
+          <div key={doc.id} className="pdf-card">
+            <div className="pdf-info" onClick={() => onSelectPdf(doc.id)}>
               <div className="pdf-icon">📄</div>
-              <h3 className="pdf-filename">{filename}</h3>
+              <h3 className="pdf-filename">{doc.title || doc.id}</h3>
             </div>
             <div className="pdf-actions">
-              <PdfEmbedder pdfUrl={`${filename}`} />
+              {/* We'll update this next to use docId */}
+              <PdfEmbedder pdfUrl={doc.id} />
             </div>
           </div>
         ))}
@@ -56,7 +47,9 @@ const StaticPdfList = ({ onSelectPdf }) => {
 
       <div className="library-tip">
         <span>💡</span>
-        <p>To add more files, drop them in the <code>public/</code> folder and update <code>public/pdfs/index.json</code>.</p>
+        <p>
+          Drop PDFs into the repo-level <code>pdfs/</code> folder. Backend will pick them up automatically.
+        </p>
       </div>
     </div>
   );

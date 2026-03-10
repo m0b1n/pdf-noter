@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from "react";
+import "./PdfHighlighterViewer.css";
 
 const BookmarkSidebar = ({ pdfDocument, onJumpToPage }) => {
   const [outline, setOutline] = useState([]);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    if (pdfDocument) {
-      pdfDocument.getOutline().then((res) => setOutline(res || []));
-    }
+    if (!pdfDocument) return;
+    pdfDocument.getOutline().then((res) => setOutline(res || []));
   }, [pdfDocument]);
 
   const handleBookmarkClick = async (dest) => {
-    if (!dest) return;
+    if (!dest || !pdfDocument) return;
     try {
-      // Resolve the destination to a page index
       const pageRef = Array.isArray(dest) ? dest[0] : dest;
       const pageIndex = await pdfDocument.getPageIndex(pageRef);
-
-      // Call the jump function (1-indexed for the highlighter)
       onJumpToPage(pageIndex + 1);
     } catch (error) {
       console.error("Failed to resolve bookmark destination:", error);
@@ -30,7 +28,7 @@ const BookmarkSidebar = ({ pdfDocument, onJumpToPage }) => {
           <div
             className="bookmark-link"
             onClick={() => handleBookmarkClick(item.dest)}
-            title={item.title} // Shows full title on hover
+            title={item.title}
           >
             {item.title}
           </div>
@@ -41,15 +39,31 @@ const BookmarkSidebar = ({ pdfDocument, onJumpToPage }) => {
   );
 
   return (
-    <div className="pdf-sidebar">
-      <h4 className="sidebar-header">Table of Contents</h4>
-      <div className="sidebar-content">
-        {outline.length > 0 ? (
-          renderOutline(outline)
-        ) : (
-          <p className="no-bookmarks">No bookmarks available in this PDF.</p>
-        )}
+    <div className={`pdf-sidebar ${collapsed ? "panel-collapsed" : ""}`}>
+      <div className="panel-header panel-header-left">
+        {/* Hide title when collapsed so the toggle stays clickable */}
+        {!collapsed && <h4 className="sidebar-header-text">Table of Contents</h4>}
+
+        <button
+          type="button"
+          className="panel-toggle panel-toggle-left"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? "Expand table of contents" : "Collapse table of contents"}
+          title={collapsed ? "Expand" : "Collapse"}
+        >
+          {collapsed ? "›" : "‹"}
+        </button>
       </div>
+
+      {!collapsed && (
+        <div className="sidebar-content">
+          {outline.length > 0 ? (
+            renderOutline(outline)
+          ) : (
+            <p className="no-bookmarks">No bookmarks available in this PDF.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 };
