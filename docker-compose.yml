@@ -6,15 +6,13 @@ services:
     environment:
       DATABASE_URL: sqlite:////app/data/pdfnoter.db
       PDF_DIR: /app/pdfs
-      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_HOST: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen2.5:7b
     volumes:
       - ./backend/pdfnoter.db:/app/data/pdfnoter.db
       - ./pdfs:/app/pdfs
     expose:
       - "8000"
-    depends_on:
-      - ollama
     restart: unless-stopped
 
   frontend:
@@ -26,30 +24,3 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: pdf_ollama
-    ports:
-      - "11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-
-  ollama-init:
-    image: ollama/ollama:latest
-    container_name: pdf_ollama_init
-    depends_on:
-      - ollama
-    entrypoint: >
-      /bin/sh -c "
-      sleep 8 &&
-      ollama pull qwen2.5:7b
-      "
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: qwen2.5:7b
-    restart: "no"
-
-volumes:
-  ollama_data:

@@ -77,7 +77,7 @@ const extractSentenceContext = (pageText, start, end) => {
   return normalizeWhitespace(pageText.slice(sentenceStart, sentenceEnd));
 };
 
-const extractParagraphContext = (pageText, start, end) => {
+const extractParagraphContext = (pageText, start, end, sentenceRadius = 1) => {
   if (start < 0 || end < 0) return normalizeWhitespace(pageText);
 
   const paragraphBreakRegex = /\n\s*\n/g;
@@ -96,13 +96,33 @@ const extractParagraphContext = (pageText, start, end) => {
     }
   }
 
-  const paragraph = normalizeWhitespace(pageText.slice(paragraphStart, paragraphEnd));
+  const rawParagraph = pageText.slice(paragraphStart, paragraphEnd);
+  const relativeStart = Math.max(0, start - paragraphStart);
 
-  if (paragraph) return paragraph;
+  const sentenceRegex = /[^.!?]+[.!?]+|[^.!?]+$/g;
+  const sentences = [...rawParagraph.matchAll(sentenceRegex)].map((match) => ({
+    text: match[0],
+    start: match.index ?? 0,
+    end: (match.index ?? 0) + match[0].length,
+  }));
 
-  const fallbackStart = Math.max(0, start - 220);
-  const fallbackEnd = Math.min(pageText.length, end + 220);
-  return normalizeWhitespace(pageText.slice(fallbackStart, fallbackEnd));
+  const selectedSentenceIndex = sentences.findIndex(
+    (sentence) => relativeStart >= sentence.start && relativeStart < sentence.end
+  );
+
+  if (selectedSentenceIndex === -1) {
+    return normalizeWhitespace(rawParagraph);
+  }
+
+  const from = Math.max(0, selectedSentenceIndex - sentenceRadius);
+  const to = Math.min(sentences.length - 1, selectedSentenceIndex + sentenceRadius);
+
+  const snippet = sentences
+    .slice(from, to + 1)
+    .map((sentence) => sentence.text)
+    .join(" ");
+
+  return normalizeWhitespace(snippet);
 };
 
 const buildHighlightContext = (pageText, selectedText) => {
